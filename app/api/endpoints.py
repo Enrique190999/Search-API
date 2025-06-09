@@ -1,15 +1,26 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+from enum import Enum
+
 from app.services.duckduckgo import DuckDuckGoService
 from app.services.bing import BingService
 from app.models.schema import SearchResult
 
-
 router = APIRouter()
 
-@router.get("/search/duckduckgo", response_model=SearchResult)
-async def search(q: str = Query(..., description="Search in DuckDuckGo for a query")):
-    return DuckDuckGoService(q).get_results()
+class SearchEngine(str, Enum):
+    duckduckgo = "duckduckgo"
+    bing = "bing"
 
-@router.get("/search/bing", response_model=SearchResult)
-async def search_bing(q: str = Query(..., description="Search in Bing for a query")):
-    return BingService(q).get_results()
+class SearchRequest(BaseModel):
+    engine: SearchEngine = Field(..., description="Search engine to use: 'duckduckgo' or 'bing'")
+    q: str = Field(..., description="Search query")
+
+@router.post("/search", response_model=SearchResult)
+async def search(request: SearchRequest):
+    if request.engine == SearchEngine.duckduckgo:
+        return DuckDuckGoService(request.q).get_results()
+    elif request.engine == SearchEngine.bing:
+        return BingService(request.q).get_results()
+    else:
+        raise HTTPException(status_code=400, detail="Invalid search engine")
